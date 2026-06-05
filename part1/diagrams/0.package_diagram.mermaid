@@ -1,0 +1,45 @@
+classDiagram
+    class PresentationLayer {
+        <<Package>>
+        +UserAPI
+        +PlaceAPI
+        +ReviewAPI
+        +AmenityAPI
+    }
+
+    class HBnBFacade {
+        <<Interface>>
+        +create_user()
+        +get_user()
+        +delete_user()
+        +create_place()
+        +get_place()
+        +delete_place()
+        +create_review()
+        +get_review()
+        +delete_review()
+        +create_amenity()
+        +get_amenity()
+        +delete_amenity()
+    }
+
+    class BuissnessLogicLayer {
+        <<Package>>
+        +UserService
+        +PlaceService
+        +ReviewService
+        +AmenityService
+    }
+
+    class PersistenceLayer {
+        <<Package>>
+        +UserRepository
+        +PlaceRepository
+        +ReviewRepository
+        +AmenityRepository
+        +DatabaseConnection
+    }
+
+    PresentationLayer --> HBnBFacade : uses (Facade Pattern)
+    HBnBFacade --> BuissnessLogicLayer : manages buisness operations
+    BuissnessLogicLayer --> PersistenceLayer : Database operations (stores / retrives data)
