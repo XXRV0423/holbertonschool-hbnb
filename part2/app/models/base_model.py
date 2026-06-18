@@ -19,6 +19,10 @@ class BaseModel:
                 setattr(self, key, value)
         self.save()
 
+    def delete(self):
+        """Placeholder for deletion logic (handled by repository)."""
+        pass
+
     def to_dict(self):
         """Return a dictionary representation of the instance."""
         return {
