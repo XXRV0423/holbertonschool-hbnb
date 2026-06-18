@@ -1,0 +1,50 @@
+from flask_restx import Namespace, Resource, fields
+from app.services.facade import facade
+
+api = Namespace('amenities', description='Amenity operations')
+
+amenity_model = api.model('Amenity', {
+    'name': fields.String(required=True, description='Amenity name')
+})
+
+
+@api.route('/')
+class AmenityList(Resource):
+    @api.expect(amenity_model, validate=True)
+    @api.response(201, 'Amenity successfully created')
+    @api.response(400, 'Invalid input data')
+    def post(self):
+        """Register a new amenity"""
+        amenity = facade.create_amenity(api.payload)
+        return amenity.to_dict(), 201
+
+    @api.response(200, 'List of amenities retrieved successfully')
+    def get(self):
+        """Retrieve a list of all amenities"""
+        amenities = facade.get_all_amenities()
+        return [a.to_dict() for a in amenities], 200
+
+
+@api.route('/<string:amenity_id>')
+class AmenityResource(Resource):
+    @api.response(200, 'Amenity details retrieved successfully')
+    @api.response(404, 'Amenity not found')
+    def get(self, amenity_id):
+        """Get amenity details by ID"""
+        amenity = facade.get_amenity(amenity_id)
+        if not amenity:
+            return {'error': 'Amenity not found'}, 404
+        return amenity.to_dict(), 200
+
+    @api.expect(amenity_model, validate=True)
+    @api.response(200, 'Amenity successfully updated')
+    @api.response(404, 'Amenity not found')
+    @api.response(400, 'Invalid input data')
+    def put(self, amenity_id):
+        """Update an amenity"""
+        amenity = facade.get_amenity(amenity_id)
+        if not amenity:
+            return {'error': 'Amenity not found'}, 404
+
+        updated = facade.update_amenity(amenity_id, api.payload)
+        return updated.to_dict(), 200
