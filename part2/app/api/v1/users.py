@@ -6,7 +6,8 @@ api = Namespace('users', description='User operations')
 user_model = api.model('User', {
     'first_name': fields.String(required=True, description='First name'),
     'last_name': fields.String(required=True, description='Last name'),
-    'email': fields.String(required=True, description='Email address')
+    'email': fields.String(required=True, description='Email address'),
+    'password': fields.String(required=True, description='Password')
 })
 
 
@@ -24,7 +25,10 @@ class UserList(Resource):
         if existing_user:
             return {'error': 'Email already registered'}, 400
 
-        user = facade.create_user(user_data)
+        try:
+            user = facade.create_user(user_data)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return user.to_dict(), 201
 
     @api.response(200, 'List of users retrieved successfully')
@@ -55,5 +59,8 @@ class UserResource(Resource):
         if not user:
             return {'error': 'User not found'}, 404
 
-        updated = facade.update_user(user_id, api.payload)
+        try:
+            updated = facade.update_user(user_id, api.payload)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return updated.to_dict(), 200

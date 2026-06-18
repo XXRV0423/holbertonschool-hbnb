@@ -39,7 +39,10 @@ class PlaceList(Resource):
         if not owner:
             return {'error': 'Owner not found'}, 404
 
-        place = facade.create_place(place_data)
+        try:
+            place = facade.create_place(place_data)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return place.to_dict(), 201
 
     @api.response(200, 'List of places retrieved successfully')
@@ -83,5 +86,8 @@ class PlaceResource(Resource):
         if not place:
             return {'error': 'Place not found'}, 404
 
-        updated = facade.update_place(place_id, api.payload)
+        try:
+            updated = facade.update_place(place_id, api.payload)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return updated.to_dict(), 200

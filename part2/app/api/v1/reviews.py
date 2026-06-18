@@ -29,7 +29,10 @@ class ReviewList(Resource):
         if not place:
             return {'error': 'Place not found'}, 404
 
-        review = facade.create_review(review_data)
+        try:
+            review = facade.create_review(review_data)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return review.to_dict(), 201
 
     @api.response(200, 'List of reviews retrieved successfully')
@@ -60,7 +63,10 @@ class ReviewResource(Resource):
         if not review:
             return {'error': 'Review not found'}, 404
 
-        updated = facade.update_review(review_id, api.payload)
+        try:
+            updated = facade.update_review(review_id, api.payload)
+        except ValueError as e:
+            return {'error': str(e)}, 400
         return updated.to_dict(), 200
 
     @api.response(200, 'Review deleted successfully')
