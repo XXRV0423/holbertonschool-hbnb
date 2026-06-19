@@ -3,7 +3,7 @@ from app.models.base_model import BaseModel
 
 
 class User(BaseModel):
-    def __init__(self, first_name, last_name, email, password, is_admin=False):
+    def __init__(self, first_name, last_name, email, password=None, is_admin=False):
         super().__init__()
         self.first_name = first_name
         self.last_name = last_name
@@ -54,8 +54,8 @@ class User(BaseModel):
 
     @password.setter
     def password(self, value):
-        if not value or not isinstance(value, str):
-            raise ValueError("Password is required")
+        if value is not None and not isinstance(value, str):
+            raise ValueError("Password must be a string")
         self._password = value
 
     def to_dict(self):
