@@ -49,7 +49,12 @@ class HBnBFacade:
 
     # --- Place methods ---
     def create_place(self, place_data):
+        amenity_ids = place_data.pop('amenities', [])
         place = Place(**place_data)
+        for amenity_id in amenity_ids:
+            amenity = self.amenity_repo.get(amenity_id)
+            if amenity:
+                place.add_amenity(amenity)
         self.place_repo.add(place)
         return place
 
@@ -60,6 +65,7 @@ class HBnBFacade:
         return self.place_repo.get_all()
 
     def update_place(self, place_id, place_data):
+        place_data.pop('amenities', None)
         self.place_repo.update(place_id, place_data)
         return self.place_repo.get(place_id)
 
