@@ -11,12 +11,32 @@ def reset_facade():
     facade.amenity_repo._storage.clear()
 
 
-class TestUserEndpoints(unittest.TestCase):
+class AuthedTestCase(unittest.TestCase):
+    """Base class providing a helper to register + log in a user and get a JWT."""
+
     def setUp(self):
         self.app = create_app()
         self.client = self.app.test_client()
         reset_facade()
 
+    def _register_and_login(self, email, password='password123',
+                             first_name='Test', last_name='User'):
+        res = self.client.post('/api/v1/users/', json={
+            'first_name': first_name, 'last_name': last_name,
+            'email': email, 'password': password
+        })
+        user_id = res.get_json()['id']
+        login = self.client.post('/api/v1/auth/login', json={
+            'email': email, 'password': password
+        })
+        token = login.get_json()['access_token']
+        return user_id, token
+
+    def _auth_header(self, token):
+        return {'Authorization': f'Bearer {token}'}
+
+
+class TestUserEndpoints(AuthedTestCase):
     def test_create_user_success(self):
         res = self.client.post('/api/v1/users/', json={
             'first_name': 'John', 'last_name': 'Doe', 'email': 'john.doe@example.com',
@@ -36,7 +56,6 @@ class TestUserEndpoints(unittest.TestCase):
         self.assertEqual(res.status_code, 201)
         user_id = res.get_json()['id']
 
-        # Password must never appear in POST or GET responses.
         get_res = self.client.get(f'/api/v1/users/{user_id}')
         self.assertNotIn('password', get_res.get_json())
 
@@ -44,7 +63,6 @@ class TestUserEndpoints(unittest.TestCase):
         for u in list_res.get_json():
             self.assertNotIn('password', u)
 
-        # Internally, the password must be hashed, not stored in plaintext.
         user = facade.get_user(user_id)
         self.assertIsNotNone(user.password)
         self.assertNotEqual(user.password, 'mysecretpassword')
@@ -97,22 +115,40 @@ class TestUserEndpoints(unittest.TestCase):
         res = self.client.get('/api/v1/users/nonexistent-id')
         self.assertEqual(res.status_code, 404)
 
+    def test_update_user_requires_auth(self):
+        user_id, _ = self._register_and_login('bob@example.com')
+        res = self.client.put(f'/api/v1/users/{user_id}', json={'first_name': 'Bobby'})
+        self.assertEqual(res.status_code, 401)
+
     def test_update_user_success(self):
-        create = self.client.post('/api/v1/users/', json={
-            'first_name': 'Bob', 'last_name': 'Brown', 'email': 'bob@example.com'
-        })
-        user_id = create.get_json()['id']
+        user_id, token = self._register_and_login('bob2@example.com')
         res = self.client.put(f'/api/v1/users/{user_id}', json={
-            'first_name': 'Bobby', 'last_name': 'Brown', 'email': 'bob@example.com'
-        })
+            'first_name': 'Bobby'
+        }, headers=self._auth_header(token))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()['first_name'], 'Bobby')
 
-    def test_update_user_not_found(self):
-        res = self.client.put('/api/v1/users/bad-id', json={
-            'first_name': 'X', 'last_name': 'Y', 'email': 'x@y.com'
-        })
-        self.assertEqual(res.status_code, 404)
+    def test_update_user_other_user_forbidden(self):
+        _, token_a = self._register_and_login('usera@example.com')
+        user_b_id, _ = self._register_and_login('userb@example.com')
+        res = self.client.put(f'/api/v1/users/{user_b_id}', json={
+            'first_name': 'Hacked'
+        }, headers=self._auth_header(token_a))
+        self.assertEqual(res.status_code, 403)
+
+    def test_update_user_cannot_change_email(self):
+        user_id, token = self._register_and_login('nochange@example.com')
+        res = self.client.put(f'/api/v1/users/{user_id}', json={
+            'email': 'new@example.com'
+        }, headers=self._auth_header(token))
+        self.assertEqual(res.status_code, 400)
+
+    def test_update_user_cannot_change_password(self):
+        user_id, token = self._register_and_login('nochangepw@example.com')
+        res = self.client.put(f'/api/v1/users/{user_id}', json={
+            'password': 'newpassword'
+        }, headers=self._auth_header(token))
+        self.assertEqual(res.status_code, 400)
 
 
 class TestAmenityEndpoints(unittest.TestCase):
@@ -162,24 +198,27 @@ class TestAmenityEndpoints(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
 
 
-class TestPlaceEndpoints(unittest.TestCase):
+class TestPlaceEndpoints(AuthedTestCase):
     def setUp(self):
-        self.app = create_app()
-        self.client = self.app.test_client()
-        reset_facade()
-        res = self.client.post('/api/v1/users/', json={
-            'first_name': 'Owner', 'last_name': 'User', 'email': 'owner@example.com'
-        })
-        self.owner_id = res.get_json()['id']
+        super().setUp()
+        self.owner_id, self.owner_token = self._register_and_login('owner@example.com')
 
-    def _create_place(self, **overrides):
+    def _create_place(self, token=None, **overrides):
         payload = {
             'title': 'Test Place', 'description': 'A nice place',
             'price': 100.0, 'latitude': 37.7749, 'longitude': -122.4194,
-            'owner_id': self.owner_id, 'amenities': []
+            'amenities': []
         }
         payload.update(overrides)
-        return self.client.post('/api/v1/places/', json=payload)
+        headers = self._auth_header(token if token is not None else self.owner_token)
+        return self.client.post('/api/v1/places/', json=payload, headers=headers)
+
+    def test_create_place_requires_auth(self):
+        res = self.client.post('/api/v1/places/', json={
+            'title': 'No Auth Place', 'price': 10.0,
+            'latitude': 0.0, 'longitude': 0.0, 'amenities': []
+        })
+        self.assertEqual(res.status_code, 401)
 
     def test_create_place_success(self):
         res = self._create_place()
@@ -187,10 +226,7 @@ class TestPlaceEndpoints(unittest.TestCase):
         data = res.get_json()
         self.assertIn('id', data)
         self.assertEqual(data['title'], 'Test Place')
-
-    def test_create_place_invalid_owner(self):
-        res = self._create_place(owner_id='nonexistent')
-        self.assertEqual(res.status_code, 400)
+        self.assertEqual(data['owner_id'], self.owner_id)
 
     def test_create_place_negative_price(self):
         res = self._create_place(price=-10)
@@ -227,49 +263,70 @@ class TestPlaceEndpoints(unittest.TestCase):
         res = self.client.get('/api/v1/places/bad-id')
         self.assertEqual(res.status_code, 404)
 
+    def test_update_place_requires_auth(self):
+        create = self._create_place()
+        place_id = create.get_json()['id']
+        res = self.client.put(f'/api/v1/places/{place_id}', json={
+            'title': 'Updated Place', 'description': 'Updated',
+            'price': 150.0, 'latitude': 40.0, 'longitude': -74.0,
+            'amenities': []
+        })
+        self.assertEqual(res.status_code, 401)
+
     def test_update_place_success(self):
         create = self._create_place()
         place_id = create.get_json()['id']
         res = self.client.put(f'/api/v1/places/{place_id}', json={
             'title': 'Updated Place', 'description': 'Updated',
             'price': 150.0, 'latitude': 40.0, 'longitude': -74.0,
-            'owner_id': self.owner_id, 'amenities': []
-        })
+            'amenities': []
+        }, headers=self._auth_header(self.owner_token))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()['message'], 'Place updated successfully')
+
+    def test_update_place_unauthorized(self):
+        create = self._create_place()
+        place_id = create.get_json()['id']
+        _, other_token = self._register_and_login('intruder@example.com')
+        res = self.client.put(f'/api/v1/places/{place_id}', json={
+            'title': 'Hacked Place', 'description': '', 'price': 1.0,
+            'latitude': 0.0, 'longitude': 0.0, 'amenities': []
+        }, headers=self._auth_header(other_token))
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json()['error'], 'Unauthorized action')
 
     def test_update_place_not_found(self):
         res = self.client.put('/api/v1/places/bad-id', json={
             'title': 'X', 'description': '', 'price': 1.0,
-            'latitude': 0.0, 'longitude': 0.0,
-            'owner_id': self.owner_id, 'amenities': []
-        })
+            'latitude': 0.0, 'longitude': 0.0, 'amenities': []
+        }, headers=self._auth_header(self.owner_token))
         self.assertEqual(res.status_code, 404)
 
 
-class TestReviewEndpoints(unittest.TestCase):
+class TestReviewEndpoints(AuthedTestCase):
     def setUp(self):
-        self.app = create_app()
-        self.client = self.app.test_client()
-        reset_facade()
-        user_res = self.client.post('/api/v1/users/', json={
-            'first_name': 'Reviewer', 'last_name': 'User', 'email': 'reviewer@example.com'
-        })
-        self.user_id = user_res.get_json()['id']
+        super().setUp()
+        self.owner_id, self.owner_token = self._register_and_login('placeowner@example.com')
+        self.reviewer_id, self.reviewer_token = self._register_and_login('reviewer@example.com')
         place_res = self.client.post('/api/v1/places/', json={
             'title': 'Review Target', 'description': 'A place',
-            'price': 50.0, 'latitude': 0.0, 'longitude': 0.0,
-            'owner_id': self.user_id, 'amenities': []
-        })
+            'price': 50.0, 'latitude': 0.0, 'longitude': 0.0, 'amenities': []
+        }, headers=self._auth_header(self.owner_token))
         self.place_id = place_res.get_json()['id']
 
-    def _create_review(self, **overrides):
+    def _create_review(self, token=None, **overrides):
         payload = {
-            'text': 'Great place!', 'rating': 5,
-            'user_id': self.user_id, 'place_id': self.place_id
+            'text': 'Great place!', 'rating': 5, 'place_id': self.place_id
         }
         payload.update(overrides)
-        return self.client.post('/api/v1/reviews/', json=payload)
+        headers = self._auth_header(token if token is not None else self.reviewer_token)
+        return self.client.post('/api/v1/reviews/', json=payload, headers=headers)
+
+    def test_create_review_requires_auth(self):
+        res = self.client.post('/api/v1/reviews/', json={
+            'text': 'Great place!', 'rating': 5, 'place_id': self.place_id
+        })
+        self.assertEqual(res.status_code, 401)
 
     def test_create_review_success(self):
         res = self._create_review()
@@ -277,10 +334,19 @@ class TestReviewEndpoints(unittest.TestCase):
         data = res.get_json()
         self.assertIn('id', data)
         self.assertEqual(data['rating'], 5)
+        self.assertEqual(data['user_id'], self.reviewer_id)
 
-    def test_create_review_invalid_user(self):
-        res = self._create_review(user_id='bad-id')
+    def test_create_review_own_place_forbidden(self):
+        res = self._create_review(token=self.owner_token)
         self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.get_json()['error'], 'You cannot review your own place')
+
+    def test_create_review_duplicate_forbidden(self):
+        first = self._create_review()
+        self.assertEqual(first.status_code, 201)
+        second = self._create_review(rating=3, text='Again')
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(second.get_json()['error'], 'You have already reviewed this place')
 
     def test_create_review_invalid_place(self):
         res = self._create_review(place_id='bad-id')
@@ -314,32 +380,63 @@ class TestReviewEndpoints(unittest.TestCase):
         res = self.client.get('/api/v1/reviews/bad-id')
         self.assertEqual(res.status_code, 404)
 
+    def test_update_review_requires_auth(self):
+        create = self._create_review()
+        review_id = create.get_json()['id']
+        res = self.client.put(f'/api/v1/reviews/{review_id}', json={
+            'text': 'Amazing stay!', 'rating': 4
+        })
+        self.assertEqual(res.status_code, 401)
+
     def test_update_review_success(self):
         create = self._create_review()
         review_id = create.get_json()['id']
         res = self.client.put(f'/api/v1/reviews/{review_id}', json={
-            'text': 'Amazing stay!', 'rating': 4,
-            'user_id': self.user_id, 'place_id': self.place_id
-        })
+            'text': 'Amazing stay!', 'rating': 4
+        }, headers=self._auth_header(self.reviewer_token))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()['message'], 'Review updated successfully')
 
+    def test_update_review_unauthorized(self):
+        create = self._create_review()
+        review_id = create.get_json()['id']
+        res = self.client.put(f'/api/v1/reviews/{review_id}', json={
+            'text': 'Hacked review', 'rating': 1
+        }, headers=self._auth_header(self.owner_token))
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json()['error'], 'Unauthorized action')
+
     def test_update_review_not_found(self):
         res = self.client.put('/api/v1/reviews/bad-id', json={
-            'text': 'X', 'rating': 3,
-            'user_id': self.user_id, 'place_id': self.place_id
-        })
+            'text': 'X', 'rating': 3
+        }, headers=self._auth_header(self.reviewer_token))
         self.assertEqual(res.status_code, 404)
+
+    def test_delete_review_requires_auth(self):
+        create = self._create_review()
+        review_id = create.get_json()['id']
+        res = self.client.delete(f'/api/v1/reviews/{review_id}')
+        self.assertEqual(res.status_code, 401)
 
     def test_delete_review_success(self):
         create = self._create_review()
         review_id = create.get_json()['id']
-        res = self.client.delete(f'/api/v1/reviews/{review_id}')
+        res = self.client.delete(f'/api/v1/reviews/{review_id}',
+                                  headers=self._auth_header(self.reviewer_token))
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.get_json()['message'], 'Review deleted successfully')
 
+    def test_delete_review_unauthorized(self):
+        create = self._create_review()
+        review_id = create.get_json()['id']
+        res = self.client.delete(f'/api/v1/reviews/{review_id}',
+                                  headers=self._auth_header(self.owner_token))
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.get_json()['error'], 'Unauthorized action')
+
     def test_delete_review_not_found(self):
-        res = self.client.delete('/api/v1/reviews/bad-id')
+        res = self.client.delete('/api/v1/reviews/bad-id',
+                                  headers=self._auth_header(self.reviewer_token))
         self.assertEqual(res.status_code, 404)
 
     def test_get_reviews_by_place(self):
