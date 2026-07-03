@@ -5,12 +5,36 @@ from app.models.place import Place
 from app.models.review import Review
 
 
+DEFAULT_ADMIN_ID = '36c9050e-ddd3-4c3b-9731-9f487208bbc1'
+DEFAULT_ADMIN_EMAIL = 'admin@hbnb.io'
+DEFAULT_ADMIN_PASSWORD = 'admin1234'
+
+
 class HBnBFacade:
     def __init__(self):
         self.user_repo = InMemoryRepository()
         self.place_repo = InMemoryRepository()
         self.review_repo = InMemoryRepository()
         self.amenity_repo = InMemoryRepository()
+        self._seed_admin()
+
+    def _seed_admin(self):
+        """Seed a default administrator account.
+
+        Admin-only endpoints (creating users, managing amenities, etc.)
+        need at least one admin to already exist so the API can be
+        bootstrapped. This account is recreated with a fixed ID whenever
+        the facade starts (or storage is reset in tests).
+        """
+        admin = User(
+            first_name='Admin',
+            last_name='HBnB',
+            email=DEFAULT_ADMIN_EMAIL,
+            password=DEFAULT_ADMIN_PASSWORD,
+            is_admin=True
+        )
+        admin.id = DEFAULT_ADMIN_ID
+        self.user_repo.add(admin)
 
     # --- User methods ---
     def create_user(self, user_data):
