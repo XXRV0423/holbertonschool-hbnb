@@ -353,5 +353,54 @@ class TestReviewEndpoints(unittest.TestCase):
         self.assertEqual(res.status_code, 404)
 
 
+class TestAuthEndpoints(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app()
+        self.client = self.app.test_client()
+        reset_facade()
+        self.client.post('/api/v1/users/', json={
+            'first_name': 'Auth', 'last_name': 'User', 'email': 'auth.user@example.com',
+            'password': 'correctpassword'
+        })
+
+    def test_login_success(self):
+        res = self.client.post('/api/v1/auth/login', json={
+            'email': 'auth.user@example.com', 'password': 'correctpassword'
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('access_token', res.get_json())
+
+    def test_login_wrong_password(self):
+        res = self.client.post('/api/v1/auth/login', json={
+            'email': 'auth.user@example.com', 'password': 'wrongpassword'
+        })
+        self.assertEqual(res.status_code, 401)
+        self.assertIn('error', res.get_json())
+
+    def test_login_unknown_email(self):
+        res = self.client.post('/api/v1/auth/login', json={
+            'email': 'nobody@example.com', 'password': 'whatever'
+        })
+        self.assertEqual(res.status_code, 401)
+        self.assertIn('error', res.get_json())
+
+    def test_protected_without_token(self):
+        res = self.client.get('/api/v1/protected/')
+        self.assertEqual(res.status_code, 401)
+
+    def test_protected_with_valid_token(self):
+        login = self.client.post('/api/v1/auth/login', json={
+            'email': 'auth.user@example.com', 'password': 'correctpassword'
+        })
+        token = login.get_json()['access_token']
+        res = self.client.get('/api/v1/protected/', headers={'Authorization': f'Bearer {token}'})
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('message', res.get_json())
+
+    def test_protected_with_invalid_token(self):
+        res = self.client.get('/api/v1/protected/', headers={'Authorization': 'Bearer not-a-real-token'})
+        self.assertEqual(res.status_code, 422)
+
+
 if __name__ == '__main__':
     unittest.main()
