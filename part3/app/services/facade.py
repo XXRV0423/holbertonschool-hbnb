@@ -1,4 +1,4 @@
-from app.persistence.repository import InMemoryRepository
+from app.persistence.repository import InMemoryRepository, SQLAlchemyRepository
 from app.models.user import User
 from app.models.amenity import Amenity
 from app.models.place import Place
@@ -12,11 +12,17 @@ DEFAULT_ADMIN_PASSWORD = 'admin1234'
 
 class HBnBFacade:
     def __init__(self):
-        self.user_repo = InMemoryRepository()
+        self.user_repo = SQLAlchemyRepository(User)
         self.place_repo = InMemoryRepository()
         self.review_repo = InMemoryRepository()
         self.amenity_repo = InMemoryRepository()
-        self._seed_admin()
+        # NOTE: Admin seeding is disabled for now. It used to run eagerly
+        # here (at facade/import time) against the in-memory repository.
+        # Now that user_repo is backed by SQLAlchemy, adding a User requires
+        # a mapped model and an active app/database context, neither of
+        # which exist yet. This will be restored once the User model is
+        # mapped to the database and the schema is initialized (next task).
+        # self._seed_admin()
 
     def _seed_admin(self):
         """Seed a default administrator account.

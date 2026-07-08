@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from app import db
 
 
 class Repository(ABC):
@@ -55,3 +56,42 @@ class InMemoryRepository(Repository):
             if getattr(obj, attr_name, None) == attr_value),
             None
         )
+
+
+class SQLAlchemyRepository(Repository):
+    """Repository backed by SQLAlchemy/Flask-SQLAlchemy.
+
+    NOTE: This requires `model` to be a mapped SQLAlchemy model (i.e. a
+    class that inherits from `db.Model`) and an initialized database
+    schema. Neither is true yet for the existing models in this project;
+    that mapping and `db.create_all()` step happens in the next task.
+    """
+
+    def __init__(self, model):
+        self.model = model
+
+    def add(self, obj):
+        db.session.add(obj)
+        db.session.commit()
+
+    def get(self, obj_id):
+        return self.model.query.get(obj_id)
+
+    def get_all(self):
+        return self.model.query.all()
+
+    def update(self, obj_id, data):
+        obj = self.get(obj_id)
+        if obj:
+            for key, value in data.items():
+                setattr(obj, key, value)
+            db.session.commit()
+
+    def delete(self, obj_id):
+        obj = self.get(obj_id)
+        if obj:
+            db.session.delete(obj)
+            db.session.commit()
+
+    def get_by_attribute(self, attr_name, attr_value):
+        return self.model.query.filter_by(**{attr_name: attr_value}).first()
