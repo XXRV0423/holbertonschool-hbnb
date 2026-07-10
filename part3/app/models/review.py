@@ -1,11 +1,16 @@
+from sqlalchemy.orm import validates
+from app import db
 from app.models.base_model import BaseModel
 
 
 class Review(BaseModel):
-    # NOTE: see amenity.py — placeholder table so SQLAlchemy can map this
-    # class now that BaseModel is a db.Model. Review still uses the
-    # in-memory repository for now; full column mapping is a future task.
+    # NOTE: place_id/user_id stay plain (unmapped) attributes for now —
+    # relationships between entities are added in a later task. Only the
+    # core scalar attributes below are real SQLAlchemy columns.
     __tablename__ = 'reviews'
+
+    text = db.Column(db.String, nullable=False)
+    rating = db.Column(db.Integer, nullable=False)
 
     def __init__(self, text, rating, place_id, user_id):
         super().__init__()
@@ -14,25 +19,17 @@ class Review(BaseModel):
         self.place_id = place_id
         self.user_id = user_id
 
-    @property
-    def text(self):
-        return self._text
-
-    @text.setter
-    def text(self, value):
+    @validates('text')
+    def validate_text(self, key, value):
         if not value or not isinstance(value, str):
             raise ValueError("Review text is required")
-        self._text = value
+        return value
 
-    @property
-    def rating(self):
-        return self._rating
-
-    @rating.setter
-    def rating(self, value):
+    @validates('rating')
+    def validate_rating(self, key, value):
         if not isinstance(value, int) or not (1 <= value <= 5):
             raise ValueError("Rating must be an integer between 1 and 5")
-        self._rating = value
+        return value
 
     def to_dict(self):
         data = super().to_dict()

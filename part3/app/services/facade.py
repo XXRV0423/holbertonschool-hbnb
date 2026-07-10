@@ -1,5 +1,7 @@
-from app.persistence.repository import InMemoryRepository
 from app.services.repositories.user_repository import UserRepository
+from app.services.repositories.amenity_repository import AmenityRepository
+from app.services.repositories.place_repository import PlaceRepository
+from app.services.repositories.review_repository import ReviewRepository
 from app.models.user import User
 from app.models.amenity import Amenity
 from app.models.place import Place
@@ -14,9 +16,9 @@ DEFAULT_ADMIN_PASSWORD = 'admin1234'
 class HBnBFacade:
     def __init__(self):
         self.user_repo = UserRepository()
-        self.place_repo = InMemoryRepository()
-        self.review_repo = InMemoryRepository()
-        self.amenity_repo = InMemoryRepository()
+        self.place_repo = PlaceRepository()
+        self.review_repo = ReviewRepository()
+        self.amenity_repo = AmenityRepository()
 
     def _seed_admin(self):
         """Seed a default administrator account, if one doesn't already exist.
