@@ -82,9 +82,13 @@ class HBnBFacade:
     # --- Place methods ---
     def create_place(self, place_data):
         amenity_ids = place_data.pop('amenities', [])
+        # Look up amenities before constructing/associating them with the
+        # place, so the place's amenities relationship is never mutated
+        # while the place itself isn't in the session yet (that ordering
+        # used to trigger a SQLAlchemy "not in session" autoflush warning).
+        amenities = [self.amenity_repo.get(amenity_id) for amenity_id in amenity_ids]
         place = Place(**place_data)
-        for amenity_id in amenity_ids:
-            amenity = self.amenity_repo.get(amenity_id)
+        for amenity in amenities:
             if amenity:
                 place.add_amenity(amenity)
         self.place_repo.add(place)

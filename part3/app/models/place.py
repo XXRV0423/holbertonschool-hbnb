@@ -2,11 +2,15 @@ from sqlalchemy.orm import validates
 from app import db
 from app.models.base_model import BaseModel
 
+# Association table for the Place <-> Amenity many-to-many relationship.
+place_amenity = db.Table(
+    'place_amenity',
+    db.Column('place_id', db.String(36), db.ForeignKey('places.id'), primary_key=True),
+    db.Column('amenity_id', db.String(36), db.ForeignKey('amenities.id'), primary_key=True)
+)
+
 
 class Place(BaseModel):
-    # NOTE: owner_id/amenities/reviews stay plain (unmapped) attributes for
-    # now — relationships between entities are added in a later task. Only
-    # the core scalar attributes below are real SQLAlchemy columns.
     __tablename__ = 'places'
 
     title = db.Column(db.String(100), nullable=False)
@@ -14,6 +18,16 @@ class Place(BaseModel):
     price = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
+    owner_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+
+    # One-to-many: a Place can have many Reviews (backref creates review.place).
+    reviews = db.relationship('Review', backref='place', lazy=True)
+    # Many-to-many: a Place can have many Amenities and vice versa
+    # (backref creates amenity.places).
+    amenities = db.relationship(
+        'Amenity', secondary=place_amenity, lazy='subquery',
+        backref=db.backref('places', lazy=True)
+    )
 
     def __init__(self, title, description, price, latitude, longitude, owner_id):
         super().__init__()
@@ -23,8 +37,6 @@ class Place(BaseModel):
         self.latitude = latitude
         self.longitude = longitude
         self.owner_id = owner_id
-        self.amenities = []
-        self.reviews = []
 
     @validates('title')
     def validate_title(self, key, value):
