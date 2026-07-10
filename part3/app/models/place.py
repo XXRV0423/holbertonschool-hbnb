@@ -2,6 +2,11 @@ from app.models.base_model import BaseModel
 
 
 class Place(BaseModel):
+    # NOTE: see amenity.py — placeholder table so SQLAlchemy can map this
+    # class now that BaseModel is a db.Model. Place still uses the
+    # in-memory repository for now; full column mapping is a future task.
+    __tablename__ = 'places'
+
     def __init__(self, title, description, price, latitude, longitude, owner_id):
         super().__init__()
         self.title = title

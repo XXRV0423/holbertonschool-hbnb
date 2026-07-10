@@ -31,4 +31,9 @@ def create_app(config_class="config.DevelopmentConfig"):
     api.add_namespace(auth_ns, path='/api/v1/auth')
     api.add_namespace(protected_ns, path='/api/v1/protected')
 
+    with app.app_context():
+        db.create_all()
+        from app.services.facade import facade
+        facade._seed_admin()
+
     return app

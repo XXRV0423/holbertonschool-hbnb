@@ -1,4 +1,5 @@
-from app.persistence.repository import InMemoryRepository, SQLAlchemyRepository
+from app.persistence.repository import InMemoryRepository
+from app.services.repositories.user_repository import UserRepository
 from app.models.user import User
 from app.models.amenity import Amenity
 from app.models.place import Place
@@ -12,26 +13,21 @@ DEFAULT_ADMIN_PASSWORD = 'admin1234'
 
 class HBnBFacade:
     def __init__(self):
-        self.user_repo = SQLAlchemyRepository(User)
+        self.user_repo = UserRepository()
         self.place_repo = InMemoryRepository()
         self.review_repo = InMemoryRepository()
         self.amenity_repo = InMemoryRepository()
-        # NOTE: Admin seeding is disabled for now. It used to run eagerly
-        # here (at facade/import time) against the in-memory repository.
-        # Now that user_repo is backed by SQLAlchemy, adding a User requires
-        # a mapped model and an active app/database context, neither of
-        # which exist yet. This will be restored once the User model is
-        # mapped to the database and the schema is initialized (next task).
-        # self._seed_admin()
 
     def _seed_admin(self):
-        """Seed a default administrator account.
+        """Seed a default administrator account, if one doesn't already exist.
 
         Admin-only endpoints (creating users, managing amenities, etc.)
         need at least one admin to already exist so the API can be
-        bootstrapped. This account is recreated with a fixed ID whenever
-        the facade starts (or storage is reset in tests).
+        bootstrapped. Must be called from within an active app context
+        (e.g. from create_app(), after db.create_all()).
         """
+        if self.user_repo.get_user_by_email(DEFAULT_ADMIN_EMAIL):
+            return
         admin = User(
             first_name='Admin',
             last_name='HBnB',
@@ -52,7 +48,7 @@ class HBnBFacade:
         return self.user_repo.get(user_id)
 
     def get_user_by_email(self, email):
-        return self.user_repo.get_by_attribute('email', email)
+        return self.user_repo.get_user_by_email(email)
 
     def get_all_users(self):
         return self.user_repo.get_all()

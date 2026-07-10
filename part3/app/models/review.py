@@ -2,6 +2,11 @@ from app.models.base_model import BaseModel
 
 
 class Review(BaseModel):
+    # NOTE: see amenity.py — placeholder table so SQLAlchemy can map this
+    # class now that BaseModel is a db.Model. Review still uses the
+    # in-memory repository for now; full column mapping is a future task.
+    __tablename__ = 'reviews'
+
     def __init__(self, text, rating, place_id, user_id):
         super().__init__()
         self.text = text
