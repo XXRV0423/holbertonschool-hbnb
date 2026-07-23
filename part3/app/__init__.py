@@ -3,6 +3,7 @@ from flask_restx import Api
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
 
 bcrypt = Bcrypt()
 jwt = JWTManager()
@@ -17,6 +18,9 @@ from app.api.v1.auth import api as auth_ns, protected_api as protected_ns
 def create_app(config_class="config.DevelopmentConfig"):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Allow the static front-end (part4) to call this API from the browser.
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     bcrypt.init_app(app)
     jwt.init_app(app)
