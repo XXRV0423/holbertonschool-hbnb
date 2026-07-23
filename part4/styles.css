@@ -221,6 +221,11 @@ button:hover,
     margin-bottom: 0.5rem;
 }
 
+.error-message {
+    color: #c0392b;
+    font-weight: bold;
+}
+
 /* ---------- Generic form styling (login, review) ---------- */
 form label {
     font-weight: bold;
