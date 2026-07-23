@@ -10,6 +10,11 @@
   - Checks for a JWT token in cookies to show/hide the login link.
   - Fetches the list of places from the API and renders them as cards.
   - Filters the rendered places client-side by max price.
+
+  Task: Place details (part4 task3)
+  - Reads the place id from the URL (place.html?id=...).
+  - Fetches that place's details from the API and renders them.
+  - Shows the "Add a Review" link only if the user is authenticated.
 */
 
 // Base URL of the Flask API. Change this if you updated the Flask and is running somewhere else.
@@ -32,8 +37,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (document.getElementById('places-list')) {
         populatePriceFilter();
-        checkAuthentication();
+        const token = checkAuthentication();
+        if (token) fetchPlaces(token);
         setupPriceFilter();
+    }
+
+    if (document.getElementById('place-details')) {
+        const placeId = getPlaceIdFromURL();
+        const token = checkAuthentication();
+
+        const addReviewSection = document.getElementById('add-review');
+        if (addReviewSection) {
+            addReviewSection.style.display = token ? 'block' : 'none';
+
+            const reviewLink = addReviewSection.querySelector('.details-button');
+            if (reviewLink && placeId) {
+                reviewLink.href = `add_review.html?id=${placeId}`;
+            }
+        }
+
+        if (!placeId) {
+            console.error('No place ID found in the URL.');
+        } else if (token) {
+            fetchPlaceDetails(token, placeId);
+        }
     }
 });
 
@@ -93,7 +120,8 @@ function getCookie(name) {
 
 /**
  * Shows/hides the login link based on whether a JWT token cookie is
- * present, and triggers the places fetch when the user is authenticated.
+ * present. Returns the token (or null) so callers can decide what
+ * page-specific data to fetch.
  */
 function checkAuthentication() {
     const token = getCookie('token');
@@ -103,8 +131,9 @@ function checkAuthentication() {
         if (loginLink) loginLink.style.display = 'inline-block';
     } else {
         if (loginLink) loginLink.style.display = 'none';
-        fetchPlaces(token);
     }
+
+    return token;
 }
 
 /**
@@ -200,4 +229,137 @@ function setupPriceFilter() {
             place.style.display = withinLimit ? '' : 'none';
         });
     });
+}
+
+/**
+ * Reads the "id" query parameter from the current URL, e.g.
+ * place.html?id=<uuid> -> <uuid>.
+ */
+function getPlaceIdFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('id');
+}
+
+/**
+ * Fetches a single place's details from the API. Includes the JWT in
+ * the Authorization header when available.
+ */
+async function fetchPlaceDetails(token, placeId) {
+    try {
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE_URL}/places/${placeId}`, {
+            method: 'GET',
+            headers: headers
+        });
+
+        if (response.ok) {
+            const place = await response.json();
+            await displayPlaceDetails(place);
+        } else {
+            console.error('Failed to fetch place details:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Error fetching place details:', error);
+    }
+}
+
+// Best-effort icon match for common amenity names. Unmatched amenities
+// are still listed, just without an icon.
+function getAmenityIcon(name) {
+    const lower = name.toLowerCase();
+    if (lower.includes('wifi')) return 'images/icon_wifi.png';
+    if (lower.includes('bed')) return 'images/icon_bed.png';
+    if (lower.includes('bath')) return 'images/icon_bath.png';
+    return null;
+}
+
+// Reviews only carry a user_id, so reviewer names are looked up from
+// GET /users/<id> (a public endpoint) and cached to avoid re-fetching
+// the same reviewer more than once per page load.
+const userNameCache = new Map();
+
+async function getUserName(userId) {
+    if (!userId) return 'Guest';
+    if (userNameCache.has(userId)) return userNameCache.get(userId);
+
+    let name = 'Guest';
+    try {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+        if (response.ok) {
+            const user = await response.json();
+            name = `${user.first_name} ${user.last_name}`;
+        }
+    } catch (error) {
+        console.error('Error fetching reviewer name:', error);
+    }
+
+    userNameCache.set(userId, name);
+    return name;
+}
+
+/**
+ * Renders the fetched place into #place-details and #reviews, and
+ * updates the page title/heading with the place's name.
+ */
+async function displayPlaceDetails(place) {
+    document.title = `Place Details - ${place.title}`;
+
+    const pageTitle = document.querySelector('h1.page-title');
+    if (pageTitle) pageTitle.textContent = place.title;
+
+    const placeDetailsSection = document.getElementById('place-details');
+    if (placeDetailsSection) {
+        const amenities = place.amenities || [];
+        const amenitiesHTML = amenities.length
+            ? amenities.map((amenity) => {
+                const icon = getAmenityIcon(amenity.name);
+                const iconTag = icon
+                    ? `<img src="${icon}" alt="${amenity.name} icon" class="amenity-icon"> `
+                    : '';
+                return `<li>${iconTag}${amenity.name}</li>`;
+            }).join('')
+            : '<li>No amenities listed</li>';
+
+        placeDetailsSection.innerHTML = `
+            <div class="place-info">
+                <p><strong>Host:</strong> ${place.owner ? `${place.owner.first_name} ${place.owner.last_name}` : 'Unknown'}</p>
+                <p><strong>Price per night:</strong> $${place.price}</p>
+                <p><strong>Description:</strong> ${place.description || 'No description provided.'}</p>
+
+                <div class="amenities">
+                    <h3>Amenities</h3>
+                    <ul>${amenitiesHTML}</ul>
+                </div>
+            </div>
+        `;
+    }
+
+    const reviewsSection = document.getElementById('reviews');
+    if (reviewsSection) {
+        const reviews = place.reviews || [];
+        reviewsSection.innerHTML = '<h2>Reviews</h2>';
+
+        if (reviews.length === 0) {
+            const empty = document.createElement('p');
+            empty.textContent = 'No reviews yet.';
+            reviewsSection.appendChild(empty);
+        } else {
+            for (const review of reviews) {
+                const name = await getUserName(review.user_id);
+
+                const card = document.createElement('article');
+                card.className = 'review-card';
+                card.innerHTML = `
+                    <p class="review-user"><strong>${name}:</strong></p>
+                    <p class="review-comment">${review.text}</p>
+                    <p class="review-rating">Rating: ${review.rating}/5</p>
+                `;
+                reviewsSection.appendChild(card);
+            }
+        }
+    }
 }
