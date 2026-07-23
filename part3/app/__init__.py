@@ -20,7 +20,10 @@ def create_app(config_class="config.DevelopmentConfig"):
     app.config.from_object(config_class)
 
     # Allow the static front-end (part4) to call this API from the browser.
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # allow_headers is explicit so the "Authorization" header used for JWT
+    # requests isn't stripped out of the CORS preflight response.
+    CORS(app, resources={r"/api/*": {"origins": "*"}},
+         allow_headers=["Content-Type", "Authorization"])
 
     bcrypt.init_app(app)
     jwt.init_app(app)

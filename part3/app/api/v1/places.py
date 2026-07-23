@@ -73,6 +73,8 @@ class PlaceList(Resource):
             {
                 'id': p.id,
                 'title': p.title,
+                'description': p.description,
+                'price': p.price,
                 'latitude': p.latitude,
                 'longitude': p.longitude
             }
@@ -97,6 +99,7 @@ class PlaceResource(Resource):
             'id': place.id,
             'title': place.title,
             'description': place.description,
+            'price': place.price,
             'latitude': place.latitude,
             'longitude': place.longitude,
             'owner': {
