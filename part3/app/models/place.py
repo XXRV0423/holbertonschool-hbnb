@@ -18,6 +18,9 @@ class Place(BaseModel):
     price = db.Column(db.Float, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
+    bedrooms = db.Column(db.Integer, nullable=False, default=0)
+    bathrooms = db.Column(db.Integer, nullable=False, default=0)
+    beds = db.Column(db.Integer, nullable=False, default=0)
     owner_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
 
     # One-to-many: a Place can have many Reviews (backref creates review.place).
@@ -29,7 +32,8 @@ class Place(BaseModel):
         backref=db.backref('places', lazy=True)
     )
 
-    def __init__(self, title, description, price, latitude, longitude, owner_id):
+    def __init__(self, title, description, price, latitude, longitude, owner_id,
+                 bedrooms=0, bathrooms=0, beds=0):
         super().__init__()
         self.title = title
         self.description = description
@@ -37,6 +41,9 @@ class Place(BaseModel):
         self.latitude = latitude
         self.longitude = longitude
         self.owner_id = owner_id
+        self.bedrooms = bedrooms
+        self.bathrooms = bathrooms
+        self.beds = beds
 
     @validates('title')
     def validate_title(self, key, value):
@@ -64,6 +71,14 @@ class Place(BaseModel):
             raise ValueError("Longitude must be between -180 and 180")
         return float(value)
 
+    @validates('bedrooms', 'bathrooms', 'beds')
+    def validate_room_counts(self, key, value):
+        if value is None:
+            return 0
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            raise ValueError(f"{key} must be a non-negative integer")
+        return value
+
     def add_amenity(self, amenity):
         if amenity not in self.amenities:
             self.amenities.append(amenity)
@@ -84,6 +99,9 @@ class Place(BaseModel):
             'price': self.price,
             'latitude': self.latitude,
             'longitude': self.longitude,
+            'bedrooms': self.bedrooms,
+            'bathrooms': self.bathrooms,
+            'beds': self.beds,
             'owner_id': self.owner_id,
             'amenities': [a.id for a in self.amenities]
         })

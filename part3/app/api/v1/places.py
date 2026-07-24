@@ -29,6 +29,9 @@ place_model = api.model('Place', {
     'price': fields.Float(required=True, description='Price per night'),
     'latitude': fields.Float(required=True, description='Latitude of the place'),
     'longitude': fields.Float(required=True, description='Longitude of the place'),
+    'bedrooms': fields.Integer(required=False, default=0, description='Number of bedrooms'),
+    'bathrooms': fields.Integer(required=False, default=0, description='Number of bathrooms'),
+    'beds': fields.Integer(required=False, default=0, description='Number of beds'),
     'owner_id': fields.String(required=False, description='ID of the owner (set automatically from the token)'),
     'owner': fields.Nested(user_model, description='Owner of the place'),
     'amenities': fields.List(fields.String, required=True, description="List of amenities ID's"),
@@ -63,6 +66,9 @@ class PlaceList(Resource):
             'price': place.price,
             'latitude': place.latitude,
             'longitude': place.longitude,
+            'bedrooms': place.bedrooms,
+            'bathrooms': place.bathrooms,
+            'beds': place.beds,
             'owner_id': place.owner_id
         }, 201
 
@@ -76,7 +82,10 @@ class PlaceList(Resource):
                 'description': p.description,
                 'price': p.price,
                 'latitude': p.latitude,
-                'longitude': p.longitude
+                'longitude': p.longitude,
+                'bedrooms': p.bedrooms,
+                'bathrooms': p.bathrooms,
+                'beds': p.beds
             }
             for p in facade.get_all_places()
         ], 200
@@ -102,6 +111,9 @@ class PlaceResource(Resource):
             'price': place.price,
             'latitude': place.latitude,
             'longitude': place.longitude,
+            'bedrooms': place.bedrooms,
+            'bathrooms': place.bathrooms,
+            'beds': place.beds,
             'owner': {
                 'id': owner.id,
                 'first_name': owner.first_name,
