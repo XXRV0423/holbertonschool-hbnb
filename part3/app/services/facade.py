@@ -101,7 +101,15 @@ class HBnBFacade:
         return self.place_repo.get_all()
 
     def update_place(self, place_id, place_data):
-        place_data.pop('amenities', None)
+        place_data = place_data.copy()
+        amenity_ids = place_data.pop('amenities', None)
+
+        if amenity_ids is not None:
+            place = self.place_repo.get(place_id)
+            if place is not None:
+                amenities = [self.amenity_repo.get(amenity_id) for amenity_id in amenity_ids]
+                place.amenities = [a for a in amenities if a]
+
         self.place_repo.update(place_id, place_data)
         return self.place_repo.get(place_id)
 
