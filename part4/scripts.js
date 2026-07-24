@@ -313,16 +313,30 @@ async function displayPlaceDetails(place) {
 
     const placeDetailsSection = document.getElementById('place-details');
     if (placeDetailsSection) {
+        // Beds/bathrooms are dedicated numeric fields on the place (not
+        // generic amenities), shown first with the same icons the
+        // original design used.
+        const roomCountItems = [];
+        if (place.beds) {
+            const label = place.beds === 1 ? 'Bed' : 'Beds';
+            roomCountItems.push(`<li><img src="images/icon_bed.png" alt="Beds icon" class="amenity-icon"> ${place.beds} ${label}</li>`);
+        }
+        if (place.bathrooms) {
+            const label = place.bathrooms === 1 ? 'Bathroom' : 'Bathrooms';
+            roomCountItems.push(`<li><img src="images/icon_bath.png" alt="Bathrooms icon" class="amenity-icon"> ${place.bathrooms} ${label}</li>`);
+        }
+
         const amenities = place.amenities || [];
-        const amenitiesHTML = amenities.length
-            ? amenities.map((amenity) => {
-                const icon = getAmenityIcon(amenity.name);
-                const iconTag = icon
-                    ? `<img src="${icon}" alt="${amenity.name} icon" class="amenity-icon"> `
-                    : '';
-                return `<li>${iconTag}${amenity.name}</li>`;
-            }).join('')
-            : '<li>No amenities listed</li>';
+        const amenityItems = amenities.map((amenity) => {
+            const icon = getAmenityIcon(amenity.name);
+            const iconTag = icon
+                ? `<img src="${icon}" alt="${amenity.name} icon" class="amenity-icon"> `
+                : '';
+            return `<li>${iconTag}${amenity.name}</li>`;
+        });
+
+        const allItems = roomCountItems.concat(amenityItems);
+        const amenitiesHTML = allItems.length ? allItems.join('') : '<li>No amenities listed</li>';
 
         placeDetailsSection.innerHTML = `
             <div class="place-info">
